@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "build": "tsc",
+    "start": "yarn build && yarn copyWeb && yarn copyCerts && node build/intercom-server/src/server.js",
+    "startFull": "yarn buildWeb && yarn start",
+    "copyWeb": "rm -rf build/intercom-server/src/web && mkdir build/intercom-server/src/web && cp -a ../intercom-client/build/. build/intercom-server/src/web/",
+    "copyCerts": "rm -rf build/intercom-server/src/certs && mkdir build/intercom-server/src/certs && cp -a ./certs/. build/intercom-server/src/certs/",
+    "buildWeb": "cd ../intercom-client && yarn build"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "java8script": "^1.1.1",
+    "typescript": "^3.5.3",
+    "uuid": "^3.3.3",
+    "websocket": "^1.0.29"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.1",
+    "@types/node": "^12.7.2",
+    "@types/uuid": "^3.4.5",
+    "@types/websocket": "^0.0.40"
+  }
+}
