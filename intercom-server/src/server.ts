@@ -3,7 +3,7 @@ import * as https from "https";
 import * as websocket from "websocket";
 import * as uuid from "uuid/v4";
 import * as fs from "fs";
-import { InitialConnectResponse, MessageType, SocketMessage, InitialConnectMessage, RoomInfo, RoomListUpdate, BeginAudioTransfer, DEFAULT_PORT } from "../../intercom-client/src/shared";
+import { InitialConnectResponse, MessageType, SocketMessage, InitialConnectMessage, RoomInfo, RoomListUpdate, BeginAudioTransfer, DEFAULT_PORT, EndAudioTransfer, PartnerDisconnectedAudio, PartnerConnectedAudio } from "../../intercom-client/src/shared";
 import { Optional } from "java8script";
 
 type OnMessageFunction = (data: websocket.IMessage) => void;
@@ -34,14 +34,15 @@ const onRequestHandler = (request: websocket.request) => {
 
 const onMessageHandler = (info: ConnectionInfo): OnMessageFunction => {
   return (data: websocket.IMessage) => {
-    console.log("onMessage");
-    console.log(data);
     if (data.type === "utf8") {
+      console.log(data);
       const socketMessage: SocketMessage = JSON.parse(data.utf8Data);
       if (socketMessage.type === MessageType.C_2_S_InitialConnectResponse) {
         handleInitialResponse(socketMessage as InitialConnectResponse);
       } else if (socketMessage.type === MessageType.C_2_S_BeginAudioTransfer) {
         handleAudioTransferStart(socketMessage as BeginAudioTransfer);
+      } else if (socketMessage.type === MessageType.C_2_S_EndAudioTransfer) {
+        handleAudioTransferEnd(socketMessage as EndAudioTransfer);
       }
     } else { //recieving buffered data
       if (info.currentRecipientId) {
@@ -63,9 +64,35 @@ const handleInitialResponse = (message: InitialConnectResponse) => {
     });
 }
 
+//changes the current recipient of the sender if they aren't already connected to someone else
+//sends a connection message to the partner
 const handleAudioTransferStart = (message: BeginAudioTransfer) => {
-  connections.filter(c => c.id === message.id)
-    .forEach(c => c.currentRecipientId = message.recieverId);
+  connections.filter(c => c.id === message.senderId)
+    .filter(sender => sender.currentRecipientId === undefined)
+    .forEach(sender => {
+      sender.currentRecipientId = message.recieverId;
+      const messageToRecipient: PartnerConnectedAudio = {
+        type: MessageType.S_2_C_PartnerSendingAudio,
+        senderId: sender.id,
+      };
+      sendMessageToId(messageToRecipient, message.recieverId, "partner connect");
+    });
+}
+
+//clears the current recipient of the sender, updates the recipient with a message
+const handleAudioTransferEnd = (message: EndAudioTransfer) => {
+  console.log("handleTransferEnd");
+  connections.filter(c => c.id === message.senderId)
+    .filter(sender => sender.currentRecipientId)
+    .filter(senderWithRecip => senderWithRecip.currentRecipientId === message.recieverId)
+    .forEach(sender => {
+      sender.currentRecipientId = undefined;
+      const messageToRecipient: PartnerDisconnectedAudio = {
+        type: MessageType.S_2_C_PartnerEndingAudio,
+        senderId: sender.id,
+      };
+      sendMessageToId(messageToRecipient, message.recieverId, "partner disconnect");
+    })
 }
 
 //returns a function that removes a connection from the connection list
@@ -95,6 +122,19 @@ const sendConnectionUpdate = () => {
   connections.forEach(info => {
     info.connection.sendUTF(JSON.stringify(message));
   })
+
+}
+
+//generic function to send a message to a client
+const sendMessageToId = (message: SocketMessage, id: string, logMessage?: string) => {
+  if (logMessage) {
+    console.log(logMessage);
+  }
+  const connection: Optional<ConnectionInfo> = Optional.ofNullable(connections.find(c => c.id === id));
+  connection.ifPresent(connection => {
+    console.log(message);
+    connection.connection.sendUTF(JSON.stringify(message));
+  });
 
 }
 
