@@ -2,6 +2,7 @@ import React, { ReactNode } from "react";
 import { Optional } from "java8script";
 import App from "../App";
 import { loadConfig } from "../socket/config";
+import ConnectionPage from "./connectionPage";
 
 interface Props { }
 interface State {
@@ -18,24 +19,15 @@ export default class Connector extends React.Component<Props, State> {
         }
     }
 
-    onInputChanged = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onSubmit = (n: string) => {
         this.setState({
-            name: Optional.ofNullable(event.target.value),
+            name: Optional.of(n),
+            connected: true,
         })
     }
 
-    onSubmit = () => {
-        this.state.name.ifPresent( n => 
-            this.setState({ connected: true })
-        );
-    }
-
     renderUnconnected = () => (
-        <div>
-            <h1>Enter your rooms name. i.e. (kitchen, basement)</h1>
-            <input type="text" value={this.state.name.orElse("")} onChange={this.onInputChanged} />
-            <button onClick={this.onSubmit}>Connect</button>
-        </div>
+            <ConnectionPage onComplete={this.onSubmit} />
     )
 
     renderConnected = () => (
